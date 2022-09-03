@@ -14,6 +14,7 @@
 #include <QtCore/QCryptographicHash>
 #include <QtCore/QTimer>
 #include <QtCore/QUuid>
+#include <QtCore/QStandardPaths>
 
 #include <chrono>
 
@@ -150,7 +151,8 @@ using EmojiStore = QVector<EmojiStoreEntry>;
 
 EmojiStore loadEmojiStore()
 {
-    QFile dataFile(":/sas-emoji.json");
+    QFile dataFile(QStandardPaths::locate(QStandardPaths::AppDataLocation,
+                                          "sas-emoji.json")); // Will it also run from builddir?
     dataFile.open(QFile::ReadOnly);
     return fromJson<EmojiStore>(
         QJsonDocument::fromJson(dataFile.readAll()).array());
