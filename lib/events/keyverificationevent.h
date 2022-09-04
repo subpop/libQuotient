@@ -20,22 +20,40 @@ public:
     QUO_CONTENT_GETTER(QString, transactionId)
 };
 
+template <class EventT>
+class EventTemplate<EventT, KeyVerificationEvent>
+    : public KeyVerificationEvent {
+public:
+    using KeyVerificationEvent::KeyVerificationEvent;
+
+    static auto basicJson(const QString& transactionId,
+                          QJsonObject contentJson = {})
+    {
+        contentJson.insert("transaction_id"_ls, transactionId);
+        return Event::basicJson(EventT::TypeId, contentJson);
+    }
+
+    explicit EventTemplate(const QString& transactionId,
+                           QJsonObject contentJson = {})
+        : EventTemplate(basicJson(transactionId, std::move(contentJson)))
+    {}
+};
+
 /// Requests a key verification with another user's devices.
 /// Typically sent as a to-device event.
-class QUOTIENT_API KeyVerificationRequestEvent : public KeyVerificationEvent {
+class QUOTIENT_API KeyVerificationRequestEvent
+    : public EventTemplate<KeyVerificationRequestEvent, KeyVerificationEvent> {
 public:
     QUO_EVENT(KeyVerificationRequestEvent, "m.key.verification.request")
 
-    using KeyVerificationEvent::KeyVerificationEvent;
+    using EventTemplate::EventTemplate;
     KeyVerificationRequestEvent(const QString& transactionId,
                                 const QString& fromDevice,
                                 const QStringList& methods,
                                 const QDateTime& timestamp)
-        : KeyVerificationRequestEvent(
-            basicJson(TypeId, { { "transaction_id"_ls, transactionId },
-                                { "from_device"_ls, fromDevice },
-                                { "methods"_ls, toJson(methods) },
-                                { "timestamp"_ls, toJson(timestamp) } }))
+        : EventTemplate(transactionId, { { "from_device"_ls, fromDevice },
+                                         { "methods"_ls, toJson(methods) },
+                                         { "timestamp"_ls, toJson(timestamp) } })
     {}
 
     /// The device ID which is initiating the request.
@@ -51,18 +69,17 @@ public:
     QUO_CONTENT_GETTER(QDateTime, timestamp)
 };
 
-class QUOTIENT_API KeyVerificationReadyEvent : public KeyVerificationEvent {
+class QUOTIENT_API KeyVerificationReadyEvent
+    : public EventTemplate<KeyVerificationReadyEvent, KeyVerificationEvent> {
 public:
     QUO_EVENT(KeyVerificationReadyEvent, "m.key.verification.ready")
 
-    using KeyVerificationEvent::KeyVerificationEvent;
+    using EventTemplate::EventTemplate;
     KeyVerificationReadyEvent(const QString& transactionId,
                               const QString& fromDevice,
                               const QStringList& methods)
-        : KeyVerificationReadyEvent(
-            basicJson(TypeId, { { "transaction_id"_ls, transactionId },
-                                { "from_device"_ls, fromDevice },
-                                { "methods"_ls, toJson(methods) } }))
+        : EventTemplate(transactionId, { { "from_device"_ls, fromDevice },
+                                         { "methods"_ls, toJson(methods) } })
     {}
 
     /// The device ID which is accepting the request.
@@ -73,24 +90,24 @@ public:
 };
 
 /// Begins a key verification process.
-class QUOTIENT_API KeyVerificationStartEvent : public KeyVerificationEvent {
+class QUOTIENT_API KeyVerificationStartEvent
+    : public EventTemplate<KeyVerificationStartEvent, KeyVerificationEvent> {
 public:
     QUO_EVENT(KeyVerificationStartEvent, "m.key.verification.start")
 
-    using KeyVerificationEvent::KeyVerificationEvent;
+    using EventTemplate::EventTemplate;
     KeyVerificationStartEvent(const QString& transactionId,
                               const QString& fromDevice)
-        : KeyVerificationStartEvent(
-            basicJson(TypeId, { { "transaction_id"_ls, transactionId },
-                                { "from_device"_ls, fromDevice },
-                                { "method"_ls, SasV1Method },
-                                { "hashes"_ls, QJsonArray{ "sha256"_ls } },
-                                { "key_agreement_protocols"_ls,
-                                  QJsonArray{ "curve25519-hkdf-sha256"_ls } },
-                                { "message_authentication_codes"_ls,
-                                  QJsonArray{ "hkdf-hmac-sha256"_ls } },
-                                { "short_authentication_string"_ls,
-                                  QJsonArray{ "decimal"_ls, "emoji"_ls } } }))
+        : EventTemplate(transactionId,
+                        { { "from_device"_ls, fromDevice },
+                          { "method"_ls, SasV1Method },
+                          { "hashes"_ls, QJsonArray{ "sha256"_ls } },
+                          { "key_agreement_protocols"_ls,
+                            QJsonArray{ "curve25519-hkdf-sha256"_ls } },
+                          { "message_authentication_codes"_ls,
+                            QJsonArray{ "hkdf-hmac-sha256"_ls } },
+                          { "short_authentication_string"_ls,
+                            QJsonArray{ "decimal"_ls, "emoji"_ls } } })
     {}
 
     /// The device ID which is initiating the process.
@@ -140,22 +157,23 @@ public:
 
 /// Accepts a previously sent m.key.verification.start message.
 /// Typically sent as a to-device event.
-class QUOTIENT_API KeyVerificationAcceptEvent : public KeyVerificationEvent {
+class QUOTIENT_API KeyVerificationAcceptEvent
+    : public EventTemplate<KeyVerificationAcceptEvent, KeyVerificationEvent> {
 public:
     QUO_EVENT(KeyVerificationAcceptEvent, "m.key.verification.accept")
 
-    using KeyVerificationEvent::KeyVerificationEvent;
+    using EventTemplate::EventTemplate;
     KeyVerificationAcceptEvent(const QString& transactionId,
                                const QString& commitment)
-        : KeyVerificationAcceptEvent(basicJson(
-            TypeId, { { "transaction_id"_ls, transactionId },
-                      { "method"_ls, SasV1Method },
-                      { "key_agreement_protocol"_ls, "curve25519-hkdf-sha256" },
-                      { "hash"_ls, "sha256" },
-                      { "message_authentication_code"_ls, "hkdf-hmac-sha256" },
-                      { "short_authentication_string"_ls,
-                        QJsonArray{ "decimal"_ls, "emoji"_ls, } },
-                      { "commitment"_ls, commitment } }))
+        : EventTemplate(
+            transactionId,
+            { { "method"_ls, SasV1Method },
+              { "key_agreement_protocol"_ls, "curve25519-hkdf-sha256" },
+              { "hash"_ls, "sha256" },
+              { "message_authentication_code"_ls, "hkdf-hmac-sha256" },
+              { "short_authentication_string"_ls,
+                QJsonArray{ "decimal"_ls, "emoji"_ls, } },
+              { "commitment"_ls, commitment } })
     {}
 
     /// The verification method to use. Must be 'm.sas.v1'.
@@ -182,19 +200,17 @@ public:
     QUO_CONTENT_GETTER(QString, commitment)
 };
 
-class QUOTIENT_API KeyVerificationCancelEvent : public KeyVerificationEvent {
+class QUOTIENT_API KeyVerificationCancelEvent
+    : public EventTemplate<KeyVerificationCancelEvent, KeyVerificationEvent> {
 public:
     QUO_EVENT(KeyVerificationCancelEvent, "m.key.verification.cancel")
 
-    using KeyVerificationEvent::KeyVerificationEvent;
+    using EventTemplate::EventTemplate;
     KeyVerificationCancelEvent(const QString& transactionId,
                                const QString& reason)
-        : KeyVerificationCancelEvent(
-            basicJson(TypeId, {
-                                  { "transaction_id"_ls, transactionId },
-                                  { "reason"_ls, reason },
-                                  { "code"_ls, reason } // Not a typo
-                              }))
+        : EventTemplate(transactionId,
+                        // For now, the same value under both keys
+                        { { "reason"_ls, reason }, { "code"_ls, reason } })
     {}
 
     /// A human readable description of the code. The client should only
@@ -207,15 +223,14 @@ public:
 
 /// Sends the ephemeral public key for a device to the partner device.
 /// Typically sent as a to-device event.
-class KeyVerificationKeyEvent : public KeyVerificationEvent {
+class KeyVerificationKeyEvent
+    : public EventTemplate<KeyVerificationKeyEvent, KeyVerificationEvent> {
 public:
     QUO_EVENT(KeyVerificationKeyEvent, "m.key.verification.key")
 
-    using KeyVerificationEvent::KeyVerificationEvent;
+    using EventTemplate::EventTemplate;
     KeyVerificationKeyEvent(const QString& transactionId, const QString& key)
-        : KeyVerificationKeyEvent(
-            basicJson(TypeId, { { "transaction_id"_ls, transactionId },
-                                { "key"_ls, key } }))
+        : EventTemplate(transactionId, { { "key"_ls, key } })
     {}
 
     /// The device's ephemeral public key, encoded as unpadded base64.
@@ -223,17 +238,16 @@ public:
 };
 
 /// Sends the MAC of a device's key to the partner device.
-class QUOTIENT_API KeyVerificationMacEvent : public KeyVerificationEvent {
+class QUOTIENT_API KeyVerificationMacEvent
+    : public EventTemplate<KeyVerificationMacEvent, KeyVerificationEvent> {
 public:
     QUO_EVENT(KeyVerificationMacEvent, "m.key.verification.mac")
 
-    using KeyVerificationEvent::KeyVerificationEvent;
+    using EventTemplate::EventTemplate;
     KeyVerificationMacEvent(const QString& transactionId, const QString& keys,
                             const QJsonObject& mac)
-        : KeyVerificationMacEvent(
-            basicJson(TypeId, { { "transaction_id"_ls, transactionId },
-                                { "keys"_ls, keys },
-                                { "mac"_ls, mac } }))
+        : EventTemplate(transactionId,
+                        { { "keys"_ls, keys }, { "mac"_ls, mac } })
     {}
 
     /// The device's ephemeral public key, encoded as unpadded base64.
@@ -245,14 +259,10 @@ public:
     }
 };
 
-class QUOTIENT_API KeyVerificationDoneEvent : public KeyVerificationEvent {
+class QUOTIENT_API KeyVerificationDoneEvent
+    : public EventTemplate<KeyVerificationDoneEvent, KeyVerificationEvent> {
 public:
     QUO_EVENT(KeyVerificationDoneEvent, "m.key.verification.done")
-
-    using KeyVerificationEvent::KeyVerificationEvent;
-    explicit KeyVerificationDoneEvent(const QString& transactionId)
-        : KeyVerificationDoneEvent(
-            basicJson(TypeId, { { "transaction_id"_ls, transactionId } }))
-    {}
+    using EventTemplate::EventTemplate;
 };
 } // namespace Quotient
