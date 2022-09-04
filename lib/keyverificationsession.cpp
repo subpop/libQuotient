@@ -20,6 +20,12 @@
 using namespace Quotient;
 using namespace std::chrono;
 
+QByteArray hashAndEncode(const QByteArray& payload)
+{
+    return QCryptographicHash::hash(payload, QCryptographicHash::Sha256)
+        .toBase64(QByteArray::OmitTrailingEquals);
+}
+
 const QStringList supportedMethods = { SasV1Method };
 
 QStringList commonSupportedMethods(const QStringList& remoteMethods)
@@ -165,17 +171,11 @@ EmojiEntry emojiForCode(int code, const QString& language)
 
 void KeyVerificationSession::handleKey(const KeyVerificationKeyEvent& event)
 {
-    auto eventKey = event.key().toLatin1();
+    auto eventKey = event.key();
     olm_sas_set_their_key(m_sas, eventKey.data(), eventKey.size());
 
     if (startSentByUs) {
-        const auto paddedCommitment =
-            QCryptographicHash::hash((event.key() % m_startEvent).toLatin1(),
-                                     QCryptographicHash::Sha256)
-                .toBase64();
-        const QLatin1String unpaddedCommitment(paddedCommitment.constData(),
-                                               paddedCommitment.indexOf('='));
-        if (unpaddedCommitment != m_commitment) {
+        if (hashAndEncode(eventKey + m_startEvent) != m_commitment) {
             qCWarning(E2EE) << "Commitment mismatch; aborting verification";
             cancelVerification(MISMATCHED_COMMITMENT);
             return;
@@ -347,14 +347,14 @@ void KeyVerificationSession::handleStart(const KeyVerificationStartEvent& event)
     }
     QByteArray publicKey(olm_sas_pubkey_length(m_sas), '\0');
     olm_sas_get_pubkey(m_sas, publicKey.data(), publicKey.size());
-    const auto canonicalEvent = QString(QJsonDocument(event.contentJson()).toJson(QJsonDocument::Compact));
-    auto commitment = QString(QCryptographicHash::hash((QString(publicKey) % canonicalEvent).toLatin1(), QCryptographicHash::Sha256).toBase64());
-    commitment = commitment.left(commitment.indexOf('='));
+    const auto canonicalJson =
+        QJsonDocument(event.contentJson()).toJson(QJsonDocument::Compact);
 
-    m_connection->sendToDevice(m_remoteUserId, m_remoteDeviceId,
-                               KeyVerificationAcceptEvent(m_transactionId,
-                                                          commitment),
-                               m_encrypted);
+    m_connection->sendToDevice(
+        m_remoteUserId, m_remoteDeviceId,
+        KeyVerificationAcceptEvent(m_transactionId,
+                                   hashAndEncode(publicKey + canonicalJson)),
+        m_encrypted);
     setState(ACCEPTED);
 }
 

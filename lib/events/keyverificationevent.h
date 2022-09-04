@@ -164,7 +164,7 @@ public:
 
     using EventTemplate::EventTemplate;
     KeyVerificationAcceptEvent(const QString& transactionId,
-                               const QString& commitment)
+                               const QByteArray& commitment)
         : EventTemplate(
             transactionId,
             { { "method"_ls, SasV1Method },
@@ -173,7 +173,7 @@ public:
               { "message_authentication_code"_ls, "hkdf-hmac-sha256" },
               { "short_authentication_string"_ls,
                 QJsonArray{ "decimal"_ls, "emoji"_ls, } },
-              { "commitment"_ls, commitment } })
+              { "commitment"_ls, QString::fromLatin1(commitment) } })
     {}
 
     /// The verification method to use. Must be 'm.sas.v1'.
@@ -185,7 +185,7 @@ public:
 
     /// The hash method the device is choosing to use, out of the
     /// options in the m.key.verification.start message.
-    QUO_CONTENT_GETTER_X(QString, hashData, "hash"_ls)
+    QUO_LATIN1_CONTENT_GETTER_X(hashData, "hash"_ls)
 
     /// The message authentication code the device is choosing to use, out
     /// of the options in the m.key.verification.start message.
@@ -197,7 +197,7 @@ public:
     /// The hash (encoded as unpadded base64) of the concatenation of the
     /// device's ephemeral public key (encoded as unpadded base64) and the
     /// canonical JSON representation of the m.key.verification.start message.
-    QUO_CONTENT_GETTER(QString, commitment)
+    QUO_LATIN1_CONTENT_GETTER_X(commitment, "commitment"_ls)
 };
 
 class QUOTIENT_API KeyVerificationCancelEvent
@@ -234,7 +234,7 @@ public:
     {}
 
     /// The device's ephemeral public key, encoded as unpadded base64.
-    QUO_CONTENT_GETTER(QString, key)
+    QUO_LATIN1_CONTENT_GETTER_X(key, "key"_ls)
 };
 
 /// Sends the MAC of a device's key to the partner device.
