@@ -26,7 +26,7 @@ private Q_SLOTS:
                 QVERIFY(session->state() == KeyVerificationSession::ACCEPTED || session->state() == KeyVerificationSession::READY);
                 connectSingleShot(session, &KeyVerificationSession::stateChanged, this, [=](){
                     QVERIFY(session->state() == KeyVerificationSession::WAITINGFORVERIFICATION);
-                    session->sendMac();
+                    session->sasVerified();
                 });
             });
         });
@@ -34,7 +34,7 @@ private Q_SLOTS:
         connect(b.get(), &Connection::newKeyVerificationSession, this, [=](KeyVerificationSession* session) {
             QVERIFY(session->remoteDeviceId() == a->deviceId());
             QVERIFY(session->state() == KeyVerificationSession::INCOMING);
-            session->sendReady();
+            session->setReady();
             // KeyVerificationSession::READY is skipped because we have only one method
             QVERIFY(session->state() == KeyVerificationSession::WAITINGFORACCEPT);
             connectSingleShot(session, &KeyVerificationSession::stateChanged, this, [=](){
@@ -43,7 +43,7 @@ private Q_SLOTS:
                     QVERIFY(session->state() == KeyVerificationSession::WAITINGFORVERIFICATION);
                     QVERIFY(aSession);
                     QVERIFY(aSession->sasEmojis() == session->sasEmojis());
-                    session->sendMac();
+                    session->sasVerified();
                     QVERIFY(session->state() == KeyVerificationSession::WAITINGFORMAC);
                 });
             });

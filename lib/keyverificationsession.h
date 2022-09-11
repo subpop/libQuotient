@@ -78,75 +78,38 @@ public:
     };
     Q_ENUM(Error)
 
-    Q_PROPERTY(QString remoteDeviceId MEMBER m_remoteDeviceId CONSTANT)
+    Q_PROPERTY(QString remoteDeviceId READ remoteDeviceId CONSTANT)
     Q_PROPERTY(QVector<EmojiEntry> sasEmojis READ sasEmojis NOTIFY sasEmojisChanged)
     Q_PROPERTY(State state READ state NOTIFY stateChanged)
-    Q_PROPERTY(Error error READ error NOTIFY errorChanged)
+    Q_PROPERTY(Error error READ error NOTIFY stateChanged)
 
     KeyVerificationSession(QString remoteUserId,
                            const KeyVerificationRequestEvent& event,
                            Connection* connection, bool encrypted);
     KeyVerificationSession(QString userId, QString deviceId,
                            Connection* connection);
-    ~KeyVerificationSession() override;
-    Q_DISABLE_COPY_MOVE(KeyVerificationSession)
 
     void handleEvent(const KeyVerificationEvent& baseEvent);
 
+    QString remoteDeviceId() const;
     QVector<EmojiEntry> sasEmojis() const;
     State state() const;
-
     Error error() const;
 
-    QString remoteDeviceId() const;
-
 public Q_SLOTS:
-    void sendRequest();
-    void sendReady();
-    void sendMac();
-    void sendStartSas();
-    void sendKey();
-    void sendDone();
+    void setReady();
+    void sasVerified();
     void cancelVerification(Error error);
 
 Q_SIGNALS:
     void keyReceived();
     void sasEmojisChanged();
     void stateChanged();
-    void errorChanged();
     void finished();
 
 private:
-    const QString m_remoteUserId;
-    const QString m_remoteDeviceId;
-    const QString m_transactionId;
-    Connection* m_connection;
-    OlmSAS* m_sas = nullptr;
-    QVector<EmojiEntry> m_sasEmojis;
-    bool startSentByUs = false;
-    State m_state = INCOMING;
-    Error m_error = NONE;
-    QByteArray m_startEvent;
-    QByteArray m_commitment;
-    bool macReceived = false;
-    bool m_encrypted;
-    QStringList m_remoteSupportedMethods;
-    bool m_verified = false;
-    QString m_pendingEdKeyId{};
-
-    void handleReady(const KeyVerificationReadyEvent& event);
-    void handleStart(const KeyVerificationStartEvent& event);
-    void handleKey(const KeyVerificationKeyEvent& event);
-    void handleMac(const KeyVerificationMacEvent& event);
-    void init(std::chrono::milliseconds timeout);
-    void setState(State state);
-    void setError(Error error);
-    static QString errorToString(Error error);
-    static Error stringToError(const QString& error);
-    void trustKeys();
-
-    QByteArray macInfo(bool verifying, const QString& key = "KEY_IDS"_ls);
-    QString calculateMac(const QString& input, bool verifying, const QString& keyId= "KEY_IDS"_ls);
+    class Private;
+    ImplPtr<Private> d;
 };
 
 } // namespace Quotient
