@@ -12,7 +12,10 @@ namespace Quotient {
 class QUOTIENT_API NetworkAccessManager : public QNetworkAccessManager {
     Q_OBJECT
 public:
-    NetworkAccessManager(QObject* parent = nullptr);
+    explicit NetworkAccessManager(QObject* parent = nullptr);
+
+    static void allowDirectMediaRequests(bool allow = true);
+    static bool directMediaRequestsAllowed();
 
     QList<QSslError> ignoredSslErrors() const;
     void addIgnoredSslError(const QSslError& error);

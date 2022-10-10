@@ -33,6 +33,7 @@ public:
 
     NetworkAccessManager* q;
     QList<QSslError> ignoredSslErrors{};
+    static inline std::atomic_bool allowDirectMediaRequests = false;
 };
 
 NetworkAccessManager::NetworkAccessManager(QObject* parent)
@@ -52,6 +53,16 @@ void NetworkAccessManager::ignoreSslErrors(bool ignore) const
     } else {
         disconnect(this, &QNetworkAccessManager::sslErrors, this, nullptr);
     }
+}
+
+void NetworkAccessManager::allowDirectMediaRequests(bool allow)
+{
+    Private::allowDirectMediaRequests = allow;
+}
+
+bool NetworkAccessManager::directMediaRequestsAllowed()
+{
+    return Private::allowDirectMediaRequests;
 }
 
 void NetworkAccessManager::addIgnoredSslError(const QSslError& error)
@@ -83,10 +94,7 @@ QNetworkReply* NetworkAccessManager::createRequest(
         const QUrlQuery query(mxcUrl.query());
         const auto accountId = query.queryItemValue(QStringLiteral("user_id"));
         if (accountId.isEmpty()) {
-            // Using QSettings here because Quotient::NetworkSettings
-            // doesn't provide multithreading guarantees
-            static thread_local QSettings s;
-            if (!s.value("Network/allow_direct_media_requests").toBool()) {
+            if (!directMediaRequestsAllowed()) {
                 qCWarning(NETWORK) << "No connection specified";
                 return new MxcReply();
             }
@@ -104,7 +112,7 @@ QNetworkReply* NetworkAccessManager::createRequest(
             mediaServerConnection->resolveServer("@:" % request.url().host());
             return mxcReply;
         }
-        auto* const connection = Accounts.get(accountId);
+        const auto* const connection = Accounts.get(accountId);
         if (!connection) {
             qCWarning(NETWORK) << "Connection" << accountId << "not found";
             return new MxcReply();
