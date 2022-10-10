@@ -14,9 +14,14 @@ class QUOTIENT_API MxcReply : public QNetworkReply
 {
     Q_OBJECT
 public:
+    enum DeferredFlag { Deferred };
+
     explicit MxcReply();
     explicit MxcReply(QNetworkReply *reply);
+    explicit MxcReply(DeferredFlag);
     MxcReply(QNetworkReply* reply, Room* room, const QString& eventId);
+
+    void setNetworkReply(QNetworkReply* newReply);
 
 public Q_SLOTS:
     void abort() override;
@@ -28,4 +33,4 @@ private:
     class Private;
     ImplPtr<Private> d;
 };
-}
+} // namespace Quotient

@@ -7,6 +7,7 @@
 #include "room.h"
 #include "accountregistry.h"
 #include "mxcreply.h"
+#include "csapi/content-repo.h"
 
 #include <QtCore/QCoreApplication>
 #include <QtCore/QThread>
@@ -17,25 +18,21 @@ using namespace Quotient;
 
 class NetworkAccessManager::Private {
 public:
-    explicit Private(NetworkAccessManager* q)
-        : q(q)
-    {}
-
     QNetworkReply* createImplRequest(Operation op,
-                                     const QNetworkRequest& outerRequest,
-                                     Connection* connection)
+                                     const QNetworkRequest& mxcRequest,
+                                     const Connection* connection) const
     {
-        Q_ASSERT(outerRequest.url().scheme() == "mxc");
-        QNetworkRequest r(outerRequest);
-        r.setUrl(QUrl(QStringLiteral("%1/_matrix/media/r0/download/%2")
-                          .arg(connection->homeserver().toString(),
-                               outerRequest.url().authority()
-                                   + outerRequest.url().path())));
-        return q->createRequest(op, r);
+        const auto mxcUrl = mxcRequest.url();
+        Q_ASSERT(mxcUrl.scheme() == "mxc" && !mxcUrl.isRelative());
+        const auto httpUrl = GetContentJob::makeRequestUrl(
+            connection->homeserver(), mxcUrl.authority(), mxcUrl.path().mid(1));
+        QNetworkRequest httpRequest(mxcRequest);
+        httpRequest.setUrl(httpUrl);
+        return q->createRequest(op, httpRequest);
     }
 
     NetworkAccessManager* q;
-    QList<QSslError> ignoredSslErrors;
+    QList<QSslError> ignoredSslErrors{};
 };
 
 NetworkAccessManager::NetworkAccessManager(QObject* parent)
@@ -93,28 +90,38 @@ QNetworkReply* NetworkAccessManager::createRequest(
                 qCWarning(NETWORK) << "No connection specified";
                 return new MxcReply();
             }
-            // TODO: Make the best effort with a direct unauthenticated request
-            // to the media server
-        } else {
-            auto* const connection = Accounts.get(accountId);
-            if (!connection) {
-                qCWarning(NETWORK) << "Connection" << accountId << "not found";
-                return new MxcReply();
-            }
-            const auto roomId = query.queryItemValue(QStringLiteral("room_id"));
-            if (!roomId.isEmpty()) {
-                auto room = connection->room(roomId);
-                if (!room) {
-                    qCWarning(NETWORK) << "Room" << roomId << "not found";
-                    return new MxcReply();
-                }
+            // Best effort with an unauthenticated request directly to the media
+            // homeserver (rather than via own homeserver)
+            auto* mxcReply = new MxcReply(MxcReply::Deferred);
+            auto* mediaServerConnection = new Connection(mxcReply);
+            connect(mediaServerConnection, &Connection::homeserverChanged,
+                    mxcReply,
+                    [this, mxcReply, op, request, mediaServerConnection] {
+                        mxcReply->setNetworkReply(d->createImplRequest(
+                            op, request, mediaServerConnection));
+                        mediaServerConnection->deleteLater();
+                    });
+            mediaServerConnection->resolveServer("@:" % request.url().host());
+            return mxcReply;
+        }
+        auto* const connection = Accounts.get(accountId);
+        if (!connection) {
+            qCWarning(NETWORK) << "Connection" << accountId << "not found";
+            return new MxcReply();
+        }
+        if (const auto roomId =
+                query.queryItemValue(QStringLiteral("room_id"));
+            !roomId.isEmpty()) {
+            if (auto room = connection->room(roomId))
                 return new MxcReply(
                     d->createImplRequest(op, request, connection), room,
                     query.queryItemValue(QStringLiteral("event_id")));
-            }
-            return new MxcReply(
-                d->createImplRequest(op, request, connection));
+
+            qCWarning(NETWORK) << "Room" << roomId << "not found";
+            return new MxcReply();
         }
+        return new MxcReply(
+            d->createImplRequest(op, request, connection));
     }
     auto reply = QNetworkAccessManager::createRequest(op, request, outgoingData);
     reply->ignoreSslErrors(d->ignoredSslErrors);
