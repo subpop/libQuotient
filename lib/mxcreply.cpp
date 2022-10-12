@@ -47,18 +47,21 @@ MxcReply::MxcReply(QNetworkReply* reply, Room* room, const QString &eventId)
                 d->m_encryptedFile = *efm;
         }
     }
-    if (!d->m_encryptedFile)
 #endif
-        d->prepareForReading(this, d->m_reply);
-    // Above 3 lines: prepare for reading upfront if Quotient is built
-    // without E2EE or if it's built with E2EE but that specific payload has no
-    // associated encrypted file metadata
 }
 
 void MxcReply::setNetworkReply(QNetworkReply* newReply)
 {
     d->m_reply = newReply;
     d->m_reply->setParent(this);
+    // Prepare for reading upfront if Quotient is built without E2EE or if it's
+    // built with E2EE but that specific payload has no associated encrypted
+    // file metadata
+#ifdef Quotient_E2EE_ENABLED
+    if (!d->m_encryptedFile)
+#endif
+        d->prepareForReading(this, d->m_reply);
+
     connect(d->m_reply, &QNetworkReply::finished, this, [this] {
         setError(d->m_reply->error(), d->m_reply->errorString());
 #ifdef Quotient_E2EE_ENABLED

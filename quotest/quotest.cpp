@@ -402,6 +402,8 @@ TEST_IMPL(sendReaction)
     return false;
 }
 
+static constexpr auto fileContent = "Test";
+
 TEST_IMPL(sendFile)
 {
     auto* tf = new QTemporaryFile;
@@ -409,7 +411,7 @@ TEST_IMPL(sendFile)
         clog << "Failed to create a temporary file" << endl;
         FAIL_TEST();
     }
-    tf->write("Test");
+    tf->write(fileContent);
     tf->close();
     QFileInfo tfi { *tf };
     // QFileInfo::fileName brings only the file name; QFile::fileName brings
@@ -454,9 +456,11 @@ TEST_IMPL(sendFile)
 struct DownloadRunner {
     QUrl url;
 
-    using result_type = QNetworkReply::NetworkError;
+    using result_type = std::pair<QNetworkReply::NetworkError, bool>;
 
-    QNetworkReply::NetworkError operator()(int) const
+    static constexpr result_type Success { QNetworkReply::NoError, true };
+
+    result_type operator()(int) const
     {
         QEventLoop el;
         QScopedPointer<QNetworkReply, QScopedPointerDeleteLater> reply {
@@ -466,10 +470,10 @@ struct DownloadRunner {
             reply.data(), &QNetworkReply::finished, &el, [&el] { el.exit(); },
             Qt::QueuedConnection);
         el.exec();
-        return reply->error();
+        return { reply->error(), reply->readAll() == fileContent };
     }
 
-    static QVector<QNetworkReply::NetworkError> run(const QUrl& url, int threads)
+    static QVector<result_type> run(const QUrl& url, int threads)
     {
         return QtConcurrent::blockingMapped(QVector<int>(threads),
                                             DownloadRunner{ url });
@@ -481,7 +485,7 @@ bool TestSuite::testDownload(const TestToken& thisTest, const QUrl& mxcUrl)
     // Testing direct media requests needs explicit allowance
     NetworkAccessManager::allowDirectMediaRequests(true);
     if (const auto result = DownloadRunner::run(mxcUrl, 1);
-        result.back() != QNetworkReply::NoError) {
+        result.back() != DownloadRunner::Success) {
         clog << "Direct media request to "
              << mxcUrl.toDisplayString().toStdString()
              << " was allowed but failed" << endl;
@@ -489,7 +493,7 @@ bool TestSuite::testDownload(const TestToken& thisTest, const QUrl& mxcUrl)
     }
     NetworkAccessManager::allowDirectMediaRequests(false);
     if (const auto result = DownloadRunner::run(mxcUrl, 1);
-        result.back() == QNetworkReply::NoError) {
+        result.back() == DownloadRunner::Success) {
         clog << "Direct media request to "
              << mxcUrl.toDisplayString().toStdString()
              << " was disallowed but succeeded" << endl;
@@ -500,8 +504,8 @@ bool TestSuite::testDownload(const TestToken& thisTest, const QUrl& mxcUrl)
     const auto results = DownloadRunner::run(httpUrl, 3);
     // Move out actual test from the multithreaded code to help debugging
     FINISH_TEST(std::all_of(results.begin(), results.end(),
-                            [](QNetworkReply::NetworkError ne) {
-                                return ne == QNetworkReply::NoError;
+                            [](DownloadRunner::result_type result) {
+                                return result == DownloadRunner::Success;
                             }));
 }
 
