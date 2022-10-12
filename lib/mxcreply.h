@@ -15,10 +15,11 @@ class QUOTIENT_API MxcReply : public QNetworkReply
     Q_OBJECT
 public:
     enum DeferredFlag { Deferred };
+    enum FailedFlag { Failed };
 
-    explicit MxcReply();
-    explicit MxcReply(QNetworkReply *reply);
     explicit MxcReply(DeferredFlag);
+    explicit MxcReply(FailedFlag);
+    explicit MxcReply(QNetworkReply *reply);
     MxcReply(QNetworkReply* reply, Room* room, const QString& eventId);
 
     void setNetworkReply(QNetworkReply* newReply);

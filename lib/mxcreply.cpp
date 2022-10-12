@@ -28,15 +28,15 @@ public:
     }
 };
 
-MxcReply::MxcReply(QNetworkReply* reply) : d(makeImpl<Private>())
+MxcReply::MxcReply(DeferredFlag) : d(makeImpl<Private>()) {}
+
+MxcReply::MxcReply(QNetworkReply* reply) : MxcReply(Deferred)
 {
     setNetworkReply(reply);
 }
 
-MxcReply::MxcReply(DeferredFlag) : d(makeImpl<Private>()) {}
-
-MxcReply::MxcReply(QNetworkReply* reply, Room* room, const QString &eventId)
-    : MxcReply(reply)
+MxcReply::MxcReply(QNetworkReply* reply, Room* room, const QString& eventId)
+    : MxcReply(Deferred)
 {
 #ifdef Quotient_E2EE_ENABLED
     if (auto eventIt = room->findInTimeline(eventId);
@@ -48,6 +48,7 @@ MxcReply::MxcReply(QNetworkReply* reply, Room* room, const QString &eventId)
         }
     }
 #endif
+    setNetworkReply(reply);
 }
 
 void MxcReply::setNetworkReply(QNetworkReply* newReply)
@@ -77,7 +78,7 @@ void MxcReply::setNetworkReply(QNetworkReply* newReply)
     });
 }
 
-MxcReply::MxcReply()
+MxcReply::MxcReply(FailedFlag)
     : d(ZeroImpl<Private>())
 {
     static const auto BadRequestPhrase = tr("Bad Request");

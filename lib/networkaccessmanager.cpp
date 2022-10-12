@@ -96,7 +96,7 @@ QNetworkReply* NetworkAccessManager::createRequest(
         if (accountId.isEmpty()) {
             if (!directMediaRequestsAllowed()) {
                 qCWarning(NETWORK) << "No connection specified";
-                return new MxcReply();
+                return new MxcReply(MxcReply::Failed);
             }
             // Best effort with an unauthenticated request directly to the media
             // homeserver (rather than via own homeserver)
@@ -115,7 +115,7 @@ QNetworkReply* NetworkAccessManager::createRequest(
         const auto* const connection = Accounts.get(accountId);
         if (!connection) {
             qCWarning(NETWORK) << "Connection" << accountId << "not found";
-            return new MxcReply();
+            return new MxcReply(MxcReply::Failed);
         }
         if (const auto roomId =
                 query.queryItemValue(QStringLiteral("room_id"));
@@ -126,7 +126,7 @@ QNetworkReply* NetworkAccessManager::createRequest(
                     query.queryItemValue(QStringLiteral("event_id")));
 
             qCWarning(NETWORK) << "Room" << roomId << "not found";
-            return new MxcReply();
+            return new MxcReply(MxcReply::Failed);
         }
         return new MxcReply(
             d->createImplRequest(op, request, connection));
